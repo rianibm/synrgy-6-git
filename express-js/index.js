@@ -12,6 +12,11 @@ app.use(express.json());
 app.get("/api/users", (req, res) => {
   const nameQuery = req.query.name;
 
+  // Memuat ulang data dari file JSON setiap kali permintaan GET datang
+  listUser = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "data", "users.json"), "utf-8")
+  );
+
   const filteredUsers = listUser.filter(
     (user) =>
       user.name && user.name.toLowerCase().includes(nameQuery.toLowerCase())
