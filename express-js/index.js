@@ -2,7 +2,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 
-const listUser = require("./data/users.json");
+let listUser = require("./data/users.json");
 
 const app = express();
 
@@ -12,25 +12,43 @@ app.use(express.json());
 app.get("/api/users", (req, res) => {
   const nameQuery = req.query.name;
 
-  // Memuat ulang data dari file JSON setiap kali permintaan GET datang
-  listUser = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "data", "users.json"), "utf-8")
+  // Baca ulang data dari file JSON
+  fs.readFile(
+    path.join(__dirname, "data", "users.json"),
+    "utf-8",
+    (err, data) => {
+      if (err) {
+        console.error("Error reading JSON file:", err);
+        const response = {
+          status: "INTERNAL_SERVER_ERROR",
+          message: "Failed to retrieve data",
+          data: {
+            users: [],
+          },
+        };
+        res.status(500).send(response);
+      } else {
+        listUser = JSON.parse(data);
+
+        // Gunakan data yang telah dibaca ulang
+        const filteredUsers = listUser.filter(
+          (user) =>
+            user.name &&
+            user.name.toLowerCase().includes(nameQuery.toLowerCase())
+        );
+
+        const response = {
+          status: "OK",
+          message: "Success retrieving data",
+          data: {
+            users: filteredUsers,
+          },
+        };
+
+        res.send(response);
+      }
+    }
   );
-
-  const filteredUsers = listUser.filter(
-    (user) =>
-      user.name && user.name.toLowerCase().includes(nameQuery.toLowerCase())
-  );
-
-  const response = {
-    status: "OK",
-    message: "Success retrieving data",
-    data: {
-      users: filteredUsers,
-    },
-  };
-
-  res.send(response);
 });
 
 app.get("/api/users/:id", (req, res) => {
@@ -83,20 +101,33 @@ app.post("/api/users", (req, res) => {
 
       listUser.push(newUser);
 
-      fs.writeFileSync(
+      // Simpan perubahan kembali ke file JSON
+      fs.writeFile(
         path.join(__dirname, "data", "users.json"),
-        JSON.stringify(listUser, null, 2)
+        JSON.stringify(listUser, null, 2),
+        (err) => {
+          if (err) {
+            console.error("Error writing JSON file:", err);
+            const response = {
+              status: "INTERNAL_SERVER_ERROR",
+              message: "Failed to create user",
+              data: {
+                created_user: null,
+              },
+            };
+            res.status(500).send(response);
+          } else {
+            const response = {
+              status: "CREATED",
+              message: "User successfully created",
+              data: {
+                created_user: newUser,
+              },
+            };
+            res.status(201).send(response);
+          }
+        }
       );
-
-      const response = {
-        status: "CREATED",
-        message: "User successfully created",
-        data: {
-          created_user: newUser,
-        },
-      };
-
-      res.status(201).send(response);
     } catch (error) {
       console.error("Error creating user:", error);
       const response = {
