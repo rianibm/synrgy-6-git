@@ -1,5 +1,6 @@
 const express = require("express");
 const fs = require("fs");
+const path = require("path");
 
 const listUser = require("./data/users.json");
 
@@ -11,13 +12,16 @@ app.use(express.json());
 app.get("/api/users", (req, res) => {
   const nameQuery = req.query.name;
 
+  const filteredUsers = listUser.filter(
+    (user) =>
+      user.name && user.name.toLowerCase().includes(nameQuery.toLowerCase())
+  );
+
   const response = {
     status: "OK",
     message: "Success retrieving data",
     data: {
-      users: listUser.filter((user) =>
-        user.name.toLowerCase().includes(nameQuery.toLowerCase())
-      ),
+      users: filteredUsers,
     },
   };
 
@@ -39,23 +43,22 @@ app.get("/api/users/:id", (req, res) => {
     };
 
     res.status(404).send(response);
+  } else {
+    const response = {
+      status: "OK",
+      message: "Success retrieving data",
+      data: {
+        user: user,
+      },
+    };
+
+    res.status(200).send(response);
   }
-
-  const response = {
-    status: "OK",
-    message: "Success retrieving data",
-    data: {
-      user: user,
-    },
-  };
-
-  res.status(200).send(response);
 });
 
 app.post("/api/users", (req, res) => {
   const payload = req.body;
 
-  // Payload validation
   if (!payload.name) {
     const response = {
       status: "BAD_REQUEST",
@@ -66,26 +69,41 @@ app.post("/api/users", (req, res) => {
     };
 
     res.status(400).send(response);
+  } else {
+    try {
+      const newUser = {
+        id: listUser.length > 0 ? listUser[listUser.length - 1].id + 1 : 1,
+        name: payload.name,
+      };
+
+      listUser.push(newUser);
+
+      fs.writeFileSync(
+        path.join(__dirname, "data", "users.json"),
+        JSON.stringify(listUser, null, 2)
+      );
+
+      const response = {
+        status: "CREATED",
+        message: "User successfully created",
+        data: {
+          created_user: newUser,
+        },
+      };
+
+      res.status(201).send(response);
+    } catch (error) {
+      console.error("Error creating user:", error);
+      const response = {
+        status: "INTERNAL_SERVER_ERROR",
+        message: "Failed to create user",
+        data: {
+          created_user: null,
+        },
+      };
+      res.status(500).send(response);
+    }
   }
-
-  const userToCreate = {
-    id: listUser[listUser.length - 1].id + 1,
-    name: payload.name,
-  };
-
-  listUser.push(userToCreate);
-
-  fs.writeFileSync("./data/users.json", JSON.stringify(listUser));
-
-  const response = {
-    status: "CREATED",
-    message: "User succesfully created",
-    data: {
-      created_user: userToCreate,
-    },
-  };
-
-  res.status(201).send(response);
 });
 
 const PORT = 8000;
