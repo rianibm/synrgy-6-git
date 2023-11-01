@@ -1,8 +1,7 @@
 const express = require("express");
 const fs = require("fs");
-const path = require("path");
 
-let listUser = require("./data/users.json");
+const listUser = require("./data/users.json");
 
 const app = express();
 
@@ -12,43 +11,23 @@ app.use(express.json());
 app.get("/api/users", (req, res) => {
   const nameQuery = req.query.name;
 
-  // Baca ulang data dari file JSON
-  fs.readFile(
-    path.join(__dirname, "data", "users.json"),
-    "utf-8",
-    (err, data) => {
-      if (err) {
-        console.error("Error reading JSON file:", err);
-        const response = {
-          status: "INTERNAL_SERVER_ERROR",
-          message: "Failed to retrieve data",
-          data: {
-            users: [],
-          },
-        };
-        res.status(500).send(response);
-      } else {
-        listUser = JSON.parse(data);
+  let filteredUsers = listUser;
 
-        // Gunakan data yang telah dibaca ulang
-        const filteredUsers = listUser.filter(
-          (user) =>
-            user.name &&
-            user.name.toLowerCase().includes(nameQuery.toLowerCase())
-        );
+  if (nameQuery) {
+    filteredUsers = filteredUsers.filter((user) =>
+      user.name.toLowerCase().includes(nameQuery.toLowerCase())
+    );
+  }
 
-        const response = {
-          status: "OK",
-          message: "Success retrieving data",
-          data: {
-            users: filteredUsers,
-          },
-        };
+  const response = {
+    status: "OK",
+    message: "Success retrieving data",
+    data: {
+      users: filteredUsers,
+    },
+  };
 
-        res.send(response);
-      }
-    }
-  );
+  res.send(response);
 });
 
 app.get("/api/users/:id", (req, res) => {
@@ -66,22 +45,40 @@ app.get("/api/users/:id", (req, res) => {
     };
 
     res.status(404).send(response);
-  } else {
-    const response = {
-      status: "OK",
-      message: "Success retrieving data",
-      data: {
-        user: user,
-      },
-    };
-
-    res.status(200).send(response);
   }
+
+  const response = {
+    status: "OK",
+    message: "Success retrieving data",
+    data: {
+      user: user,
+    },
+  };
+
+  res.status(200).send(response);
+});
+
+app.delete("/api/users/:id", (req, res) => {
+  const id = parseInt(req.params.id);
+
+  const filteredUsers = listUser.filter((user) => user.id !== id);
+  fs.writeFileSync("./data/users.json", JSON.stringify(filteredUsers));
+
+  const response = {
+    status: "OK",
+    message: "Success deleting data",
+    data: {
+      deleted_user: listUser.find((user) => user.id === id),
+    },
+  };
+
+  res.status(200).send(response);
 });
 
 app.post("/api/users", (req, res) => {
   const payload = req.body;
 
+  // Payload validation
   if (!payload.name) {
     const response = {
       status: "BAD_REQUEST",
@@ -92,54 +89,67 @@ app.post("/api/users", (req, res) => {
     };
 
     res.status(400).send(response);
-  } else {
-    try {
-      const newUser = {
-        id: listUser.length > 0 ? listUser[listUser.length - 1].id + 1 : 1,
-        name: payload.name,
-      };
-
-      listUser.push(newUser);
-
-      // Simpan perubahan kembali ke file JSON
-      fs.writeFile(
-        path.join(__dirname, "data", "users.json"),
-        JSON.stringify(listUser, null, 2),
-        (err) => {
-          if (err) {
-            console.error("Error writing JSON file:", err);
-            const response = {
-              status: "INTERNAL_SERVER_ERROR",
-              message: "Failed to create user",
-              data: {
-                created_user: null,
-              },
-            };
-            res.status(500).send(response);
-          } else {
-            const response = {
-              status: "CREATED",
-              message: "User successfully created",
-              data: {
-                created_user: newUser,
-              },
-            };
-            res.status(201).send(response);
-          }
-        }
-      );
-    } catch (error) {
-      console.error("Error creating user:", error);
-      const response = {
-        status: "INTERNAL_SERVER_ERROR",
-        message: "Failed to create user",
-        data: {
-          created_user: null,
-        },
-      };
-      res.status(500).send(response);
-    }
   }
+
+  const userToCreate = {
+    id: listUser[listUser.length - 1].id + 1,
+    name: payload.name,
+  };
+
+  listUser.push(userToCreate);
+
+  fs.writeFileSync("./data/users.json", JSON.stringify(listUser));
+
+  const response = {
+    status: "CREATED",
+    message: "User succesfully created",
+    data: {
+      created_user: userToCreate,
+    },
+  };
+
+  res.status(201).send(response);
+});
+
+app.patch("/api/users/:id", (req, res) => {
+  const id = parseInt(req.params.id);
+  const payload = req.body;
+
+  // Payload validation
+  if (!payload.name) {
+    const response = {
+      status: "BAD_REQUEST",
+      message: "Name cannot be empty",
+      data: {
+        created_user: null,
+      },
+    };
+
+    res.status(400).send(response);
+  }
+
+  let updatedUser;
+
+  const updatedUsers = listUser.filter((user) => {
+    if (user.id === id) {
+      user.name = payload.name;
+      updatedUser = user;
+    }
+
+    return user;
+  });
+
+  fs.writeFileSync("./data/users.json", JSON.stringify(updatedUsers));
+
+  const response = {
+    status: "OK",
+    message: "User succesfully updated",
+    data: {
+      updated_user: updatedUser,
+    },
+  };
+
+  res.status(200).send(response);
 });
 
 const PORT = 8000;
